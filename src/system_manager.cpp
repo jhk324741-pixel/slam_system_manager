@@ -7,6 +7,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 #include "ament_index_cpp/get_package_share_directory.hpp"
 
@@ -67,6 +68,16 @@ SystemManager::SystemManager(const rclcpp::NodeOptions & options)
 
   const auto & config = config_manager_.get();
   status_publisher_ = create_publisher<msg::SystemStatus>(config.topics.system_status, 10);
+  get_status_service_ = create_service<srv::GetSystemStatus>(
+    "/system/get_status",
+    std::bind(
+      &SystemManager::handleGetStatus, this,
+      std::placeholders::_1, std::placeholders::_2));
+  recover_service_ = create_service<std_srvs::srv::Trigger>(
+    "/system/recover",
+    std::bind(
+      &SystemManager::handleRecover, this,
+      std::placeholders::_1, std::placeholders::_2));
 
   try {
     map_manager_ = std::make_unique<MapManager>(config.map_root, config.frames.map);
@@ -226,7 +237,7 @@ SystemManager::SystemManager(const rclcpp::NodeOptions & options)
     config_file.c_str(), config.topics.system_status.c_str(), config.status_publish_hz);
   RCLCPP_INFO(
     get_logger(),
-    "[SYSTEM] Phase 7 ready; waiting for healthy sensors and a mode selection");
+    "[SYSTEM] Phase 8 API ready; waiting for healthy sensors and a mode selection");
 }
 
 SystemManager::~SystemManager()
@@ -240,6 +251,11 @@ SystemManager::~SystemManager()
 bool SystemManager::transitionTo(const SystemState next)
 {
   std::lock_guard<std::mutex> lock(mutex_);
+  return transitionToLocked(next);
+}
+
+bool SystemManager::transitionToLocked(const SystemState next)
+{
   if (!canTransition(current_state_, next)) {
     RCLCPP_ERROR(
       get_logger(), "[SYSTEM] Invalid state transition: %s -> %s",
@@ -253,6 +269,32 @@ bool SystemManager::transitionTo(const SystemState next)
     get_logger(), "[SYSTEM] %s -> %s",
     toString(previous).data(), toString(current_state_).data());
   return true;
+}
+
+msg::SystemStatus SystemManager::buildStatusMessage()
+{
+  msg::SystemStatus status;
+  SensorStatus sensor_status;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    status.state = std::string(toString(current_state_));
+    status.current_map = current_map_;
+    status.error_code = error_code_;
+    status.error_message = error_message_;
+    sensor_status = sensor_status_;
+  }
+
+  const bool managed_ouster_running =
+    process_manager_ && process_manager_->isProcessRunning("ouster");
+  status.ouster_running = managed_ouster_running ||
+    sensor_status.pointcloud_alive || sensor_status.imu_alive;
+  status.pointcloud_alive = sensor_status.pointcloud_alive;
+  status.imu_alive = sensor_status.imu_alive;
+  status.pointcloud_hz = static_cast<float>(sensor_status.pointcloud_hz);
+  status.imu_hz = static_cast<float>(sensor_status.imu_hz);
+  status.mapping_running = process_manager_ && process_manager_->isProcessRunning("mapping");
+  status.localization_running = localization_adapter_ && localization_adapter_->isRunning();
+  return status;
 }
 
 void SystemManager::launchOperation(std::function<void()> operation)
@@ -292,6 +334,111 @@ void SystemManager::setSystemError(const std::string & code, const std::string &
   std::lock_guard<std::mutex> lock(mutex_);
   error_code_ = code;
   error_message_ = message;
+}
+
+void SystemManager::handleGetStatus(
+  const std::shared_ptr<srv::GetSystemStatus::Request> request,
+  std::shared_ptr<srv::GetSystemStatus::Response> response)
+{
+  (void)request;
+  response->status = buildStatusMessage();
+  response->success = true;
+  response->message = "System status snapshot returned";
+}
+
+void SystemManager::handleRecover(
+  const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+  std::shared_ptr<std_srvs::srv::Trigger::Response> response)
+{
+  (void)request;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (current_state_ != SystemState::ERROR) {
+      response->success = false;
+      response->message = "Recovery is only valid in ERROR state";
+      return;
+    }
+    if (operation_in_progress_) {
+      response->success = false;
+      response->message = "Another system operation is in progress";
+      return;
+    }
+    if (!transitionToLocked(SystemState::RECOVERING)) {
+      response->success = false;
+      response->message = "Unable to enter RECOVERING state";
+      return;
+    }
+    operation_in_progress_ = true;
+  }
+
+  response->success = true;
+  response->message = "Recovery accepted; observe /system/status for completion";
+  launchOperation(std::bind(&SystemManager::performRecovery, this));
+}
+
+void SystemManager::performRecovery()
+{
+  try {
+    std::vector<std::string> stop_errors;
+    if (mapping_adapter_ && mapping_adapter_->isRunning()) {
+      std::string error;
+      if (!mapping_adapter_->stop(&error) && mapping_adapter_->isRunning()) {
+        stop_errors.push_back("mapping: " + error);
+      }
+    }
+    if (localization_adapter_ && localization_adapter_->isRunning()) {
+      std::string error;
+      if (!localization_adapter_->stop(&error) && localization_adapter_->isRunning()) {
+        stop_errors.push_back("localization: " + error);
+      }
+    }
+
+    if (!stop_errors.empty()) {
+      std::ostringstream message;
+      for (std::size_t index = 0; index < stop_errors.size(); ++index) {
+        if (index != 0U) {
+          message << "; ";
+        }
+        message << stop_errors[index];
+      }
+      setSystemError("RECOVERY_FAILED", message.str());
+      transitionTo(SystemState::ERROR);
+      return;
+    }
+
+    if (relocalization_adapter_) {
+      relocalization_adapter_->resetSession();
+    }
+    const auto sensor_status = health_monitor_ ? health_monitor_->getStatus() : SensorStatus{};
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      if (current_state_ != SystemState::RECOVERING) {
+        return;
+      }
+      current_map_.clear();
+      sensor_status_ = sensor_status;
+      sensor_failure_started_at_.reset();
+      error_code_.clear();
+      error_message_.clear();
+    }
+
+    const auto target = sensor_status.sensor_ready ?
+      SystemState::WAIT_MODE : SystemState::SENSOR_STARTING;
+    if (!transitionTo(target)) {
+      setSystemError("RECOVERY_FAILED", "State changed before recovery completed");
+      transitionTo(SystemState::ERROR);
+      return;
+    }
+    RCLCPP_INFO(
+      get_logger(), "[SYSTEM] Recovery completed; sensor_ready=%s",
+      sensor_status.sensor_ready ? "true" : "false");
+  } catch (const std::exception & exception) {
+    setSystemError("RECOVERY_FAILED", exception.what());
+    transitionTo(SystemState::ERROR);
+  } catch (...) {
+    setSystemError("RECOVERY_FAILED", "Unknown recovery failure");
+    transitionTo(SystemState::ERROR);
+  }
 }
 
 void SystemManager::updateSensorState()
@@ -1141,48 +1288,7 @@ void SystemManager::handleSetInitialPose(
 
 void SystemManager::publishStatus()
 {
-  msg::SystemStatus status;
-  SensorStatus sensor_status;
-  {
-    std::lock_guard<std::mutex> lock(mutex_);
-    status.state = std::string(toString(current_state_));
-    status.current_map = current_map_;
-    status.error_code = error_code_;
-    status.error_message = error_message_;
-    sensor_status = sensor_status_;
-  }
-
-  const bool managed_ouster_running =
-    process_manager_ && process_manager_->isProcessRunning("ouster");
-  status.ouster_running = managed_ouster_running ||
-    sensor_status.pointcloud_alive || sensor_status.imu_alive;
-  status.pointcloud_alive = sensor_status.pointcloud_alive;
-  status.imu_alive = sensor_status.imu_alive;
-  status.pointcloud_hz = static_cast<float>(sensor_status.pointcloud_hz);
-  status.imu_hz = static_cast<float>(sensor_status.imu_hz);
-  status.mapping_running = process_manager_ && process_manager_->isProcessRunning("mapping");
-  status.localization_running = localization_adapter_ && localization_adapter_->isRunning();
-
-  status_publisher_->publish(status);
+  status_publisher_->publish(buildStatusMessage());
 }
 
 }  // namespace slam_system_manager
-
-int main(int argc, char * argv[])
-{
-  rclcpp::init(argc, argv);
-
-  try {
-    auto node = std::make_shared<slam_system_manager::SystemManager>();
-    rclcpp::executors::MultiThreadedExecutor executor;
-    executor.add_node(node);
-    executor.spin();
-  } catch (const std::exception & exception) {
-    RCLCPP_FATAL(rclcpp::get_logger("system_manager"), "[SYSTEM] Startup failed: %s", exception.what());
-    rclcpp::shutdown();
-    return 1;
-  }
-
-  rclcpp::shutdown();
-  return 0;
-}

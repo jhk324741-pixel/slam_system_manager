@@ -27,6 +27,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/CreateMap.srv"
   "srv/DeleteMap.srv"
   "srv/GetMapList.srv"
+  "srv/GetSystemStatus.srv"
   "srv/LoadMap.srv"
   "srv/SaveMap.srv"
   "srv/StartMapping.srv"
@@ -85,21 +86,28 @@ ament_target_dependencies(
   relocalization_adapter geometry_msgs nav_msgs rclcpp tf2 tf2_geometry_msgs)
 target_link_libraries(relocalization_adapter yaml-cpp)
 
-add_executable(system_manager_node src/system_manager.cpp)
-target_include_directories(system_manager_node PRIVATE include)
+add_library(system_manager src/system_manager.cpp)
+target_include_directories(system_manager PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
 ament_target_dependencies(
-  system_manager_node ament_index_cpp geometry_msgs nav_msgs rclcpp sensor_msgs)
-target_link_libraries(system_manager_node
+  system_manager ament_index_cpp geometry_msgs nav_msgs rclcpp sensor_msgs std_srvs)
+target_link_libraries(system_manager
   config_manager process_manager health_monitor map_manager mapping_adapter localization_adapter
   relocalization_adapter)
 
 rosidl_get_typesupport_target(cpp_typesupport_target
   ${PROJECT_NAME} "rosidl_typesupport_cpp")
-target_link_libraries(system_manager_node "${cpp_typesupport_target}")
+target_link_libraries(system_manager "${cpp_typesupport_target}")
+
+add_executable(system_manager_node src/system_manager_main.cpp)
+target_include_directories(system_manager_node PRIVATE include)
+ament_target_dependencies(system_manager_node rclcpp)
+target_link_libraries(system_manager_node system_manager)
 
 install(TARGETS
   config_manager process_manager health_monitor map_manager mapping_adapter localization_adapter
-  relocalization_adapter
+  relocalization_adapter system_manager
   system_manager_node
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib
@@ -109,6 +117,7 @@ install(TARGETS
 install(DIRECTORY include/ DESTINATION include)
 install(DIRECTORY config launch DESTINATION share/${PROJECT_NAME})
 install(DIRECTORY docs DESTINATION share/${PROJECT_NAME})
+install(PROGRAMS tools/rosbridge_smoke_test.py DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
@@ -143,6 +152,17 @@ if(BUILD_TESTING)
   ament_target_dependencies(
     test_relocalization_adapter geometry_msgs nav_msgs rclcpp tf2 tf2_geometry_msgs)
   target_link_libraries(test_relocalization_adapter relocalization_adapter yaml-cpp)
+
+  ament_add_gtest(test_system_manager_api test/test_system_manager_api.cpp)
+  target_include_directories(test_system_manager_api PRIVATE include)
+  target_compile_definitions(test_system_manager_api PRIVATE
+    API_SYSTEM_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/test/api_system.yaml"
+    API_PROCESS_OK_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/test/api_process_ok.yaml"
+    API_PROCESS_ERROR_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/test/api_process_error.yaml"
+    API_SENSOR_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/test/api_sensor.yaml")
+  ament_target_dependencies(
+    test_system_manager_api rclcpp sensor_msgs std_srvs)
+  target_link_libraries(test_system_manager_api system_manager)
 endif()
 
 ament_export_include_directories(include)

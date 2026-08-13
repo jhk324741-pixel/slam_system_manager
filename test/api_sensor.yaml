@@ -1,0 +1,8 @@
+pointcloud_timeout_sec: 2.0
+imu_timeout_sec: 2.0
+min_pointcloud_hz: 0.1
+min_imu_hz: 0.1
+frequency_window_sec: 2.0
+startup_grace_sec: 10.0
+active_failure_grace_sec: 1.0
+health_check_hz: 20.0

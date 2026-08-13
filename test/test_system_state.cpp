@@ -44,4 +44,14 @@ TEST(SystemState, RejectsConflictingAndInvalidTransitions)
   EXPECT_FALSE(canTransition(SystemState::MAPPING, SystemState::MAPPING));
 }
 
+TEST(SystemState, AllowsConservativeRecoveryFlow)
+{
+  EXPECT_TRUE(canTransition(SystemState::ERROR, SystemState::RECOVERING));
+  EXPECT_TRUE(canTransition(SystemState::RECOVERING, SystemState::WAIT_MODE));
+  EXPECT_TRUE(canTransition(SystemState::RECOVERING, SystemState::SENSOR_STARTING));
+  EXPECT_TRUE(canTransition(SystemState::RECOVERING, SystemState::ERROR));
+  EXPECT_FALSE(canTransition(SystemState::WAIT_MODE, SystemState::RECOVERING));
+  EXPECT_FALSE(canTransition(SystemState::RECOVERING, SystemState::MAPPING));
+}
+
 }  // namespace slam_system_manager

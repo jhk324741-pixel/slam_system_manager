@@ -22,6 +22,7 @@
 #include "slam_system_manager/srv/create_map.hpp"
 #include "slam_system_manager/srv/delete_map.hpp"
 #include "slam_system_manager/srv/get_map_list.hpp"
+#include "slam_system_manager/srv/get_system_status.hpp"
 #include "slam_system_manager/srv/load_map.hpp"
 #include "slam_system_manager/srv/save_map.hpp"
 #include "slam_system_manager/srv/set_initial_pose.hpp"
@@ -30,6 +31,7 @@
 #include "slam_system_manager/srv/start_localization.hpp"
 #include "slam_system_manager/srv/stop_localization.hpp"
 #include "slam_system_manager/system_state.hpp"
+#include "std_srvs/srv/trigger.hpp"
 
 namespace slam_system_manager
 {
@@ -42,6 +44,8 @@ public:
 
 private:
   bool transitionTo(SystemState next);
+  bool transitionToLocked(SystemState next);
+  msg::SystemStatus buildStatusMessage();
   void updateSensorState();
   void monitorProcesses();
   void publishStatus();
@@ -52,6 +56,13 @@ private:
   void launchOperation(std::function<void()> operation);
   void finishOperation();
   void setSystemError(const std::string & code, const std::string & message);
+  void handleGetStatus(
+    const std::shared_ptr<srv::GetSystemStatus::Request> request,
+    std::shared_ptr<srv::GetSystemStatus::Response> response);
+  void handleRecover(
+    const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+    std::shared_ptr<std_srvs::srv::Trigger::Response> response);
+  void performRecovery();
   void handleGetMapList(
     const std::shared_ptr<srv::GetMapList::Request> request,
     std::shared_ptr<srv::GetMapList::Response> response);
@@ -103,6 +114,8 @@ private:
   bool previous_sensor_ready_{false};
   std::optional<std::chrono::steady_clock::time_point> sensor_failure_started_at_;
   rclcpp::Publisher<msg::SystemStatus>::SharedPtr status_publisher_;
+  rclcpp::Service<srv::GetSystemStatus>::SharedPtr get_status_service_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr recover_service_;
   rclcpp::Service<srv::GetMapList>::SharedPtr get_map_list_service_;
   rclcpp::Service<srv::CreateMap>::SharedPtr create_map_service_;
   rclcpp::Service<srv::DeleteMap>::SharedPtr delete_map_service_;

@@ -1,6 +1,6 @@
 # slam_system_manager
 
-Phases 1 through 5 of the ROS 2 Humble SLAM system manager.
+Phases 1 through 8 of the ROS 2 Humble SLAM system manager.
 
 ## Current workspace integration
 
@@ -97,3 +97,16 @@ copy. Saving calls the YAML-configured `/map_save` Trigger service, verifies a n
 updates metadata, and stops Mapping. `stop_mapping` intentionally stops without saving.
 
 See `docs/phase5_mapping_commands.md` for complete test commands and expected state transitions.
+
+## Phase 8 system API and rosbridge
+
+Phase 8 adds a synchronous `/system/get_status` snapshot service and an asynchronous
+`/system/recover` Trigger service. Status publication and status queries use the same snapshot
+builder. Recovery is accepted only from `ERROR`, stops residual Mapping and Localization process
+groups, clears the failed SLAM session without deleting maps, and returns to `WAIT_MODE` when the
+sensors are healthy or `SENSOR_STARTING` while they are unavailable.
+
+The installed `rosbridge_smoke_test.py` verifies WebSocket connection, `/system/status`,
+`/system/get_status`, `/system/get_map_list`, JSON field types, request IDs, timeout handling, and
+disconnect/reconnect behavior. See `docs/phase8_rosbridge_commands.md` for the complete commands and
+manual business-interface test matrix.

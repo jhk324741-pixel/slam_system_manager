@@ -1,0 +1,34 @@
+map_root: "/tmp/slam_system_manager_phase8_api_maps"
+status_publish_hz: 10.0
+
+frames:
+  map: "map"
+  odom: "odom"
+  base: "base_link"
+  lidar: "test_lidar"
+
+topics:
+  pointcloud: "/phase8_test/points"
+  imu: "/phase8_test/imu"
+  initial_pose: "/phase8_test/initialpose"
+  localization_raw_odometry: "/phase8_test/raw_odometry"
+  localization_correction: "/phase8_test/map_to_odom"
+  localization_odometry: "/phase8_test/localization_odometry"
+  localization_pose: "/phase8_test/localization_pose"
+  system_status: "/phase8_test/system_status"
+
+last_pose:
+  enable: false
+  save_interval_sec: 1.0
+
+relocalization:
+  initial_pose_wait_timeout_sec: 0.1
+  initial_pose_settle_sec: 0.0
+  last_pose_retry_count: 1
+  last_pose_retry_interval_sec: 0.1
+  min_initial_pose_subscribers: 2
+
+extrinsics:
+  lidar_to_base:
+    translation: [0.0, 0.0, 0.0]
+    rotation_rpy: [0.0, 0.0, 0.0]

@@ -1,0 +1,37 @@
+processes:
+  broken:
+    command: "/bin/sleep {missing_substitution}"
+    auto_start: true
+    sigint_timeout_sec: 0.2
+    sigterm_timeout_sec: 0.2
+  ouster:
+    command: "/bin/sleep 30"
+    auto_start: false
+    sigint_timeout_sec: 0.2
+    sigterm_timeout_sec: 0.2
+  mapping:
+    command: "/bin/sleep 30"
+    auto_start: true
+    sigint_timeout_sec: 0.2
+    sigterm_timeout_sec: 0.2
+  localization:
+    command: "/bin/sleep 30"
+    auto_start: false
+    sigint_timeout_sec: 0.2
+    sigterm_timeout_sec: 0.2
+
+mapping_adapter:
+  template_config: "/tmp/phase8_unused_mapping.yaml"
+  runtime_config_name: "mapping_runtime.yaml"
+  startup_timeout_sec: 0.2
+  save_service:
+    name: "/phase8_test/map_save"
+    type: "std_srvs/srv/Trigger"
+    timeout_sec: 0.2
+
+localization_adapter:
+  startup_timeout_sec: 0.2
+  startup_stability_sec: 0.1
+  required_topics:
+    - "/phase8_test/pcd_map"
+    - "/phase8_test/odometry"

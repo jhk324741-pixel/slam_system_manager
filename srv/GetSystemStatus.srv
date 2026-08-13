@@ -1,0 +1,4 @@
+---
+bool success
+slam_system_manager/SystemStatus status
+string message
