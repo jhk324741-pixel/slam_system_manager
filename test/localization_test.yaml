@@ -1,0 +1,11 @@
+processes:
+  localization:
+    command: "/bin/sleep 30"
+    auto_start: false
+    sigint_timeout_sec: 0.5
+    sigterm_timeout_sec: 0.5
+
+localization_adapter:
+  startup_timeout_sec: 1.0
+  startup_stability_sec: 0.1
+  required_topics: []

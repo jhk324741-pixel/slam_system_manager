@@ -1,0 +1,11 @@
+# Ouster data-health thresholds. Topic names are configured in system.yaml.
+pointcloud_timeout_sec: 1.0
+imu_timeout_sec: 0.5
+
+min_pointcloud_hz: 5.0
+min_imu_hz: 20.0
+
+frequency_window_sec: 2.0
+startup_grace_sec: 3.0
+active_failure_grace_sec: 5.0
+health_check_hz: 10.0

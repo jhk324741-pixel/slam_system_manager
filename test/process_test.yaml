@@ -1,0 +1,24 @@
+processes:
+  short_lived:
+    command: "/bin/sh -c 'exit 7'"
+    auto_start: false
+    sigint_timeout_sec: 0.2
+    sigterm_timeout_sec: 0.2
+
+  long_running:
+    command: "/bin/sleep 30"
+    auto_start: false
+    sigint_timeout_sec: 0.5
+    sigterm_timeout_sec: 0.5
+
+  ignores_stop:
+    command: "/bin/bash -c 'trap \"\" INT TERM; while true; do sleep 1; done'"
+    auto_start: false
+    sigint_timeout_sec: 0.2
+    sigterm_timeout_sec: 0.2
+
+  templated:
+    command: "/bin/sleep {seconds}"
+    auto_start: false
+    sigint_timeout_sec: 0.5
+    sigterm_timeout_sec: 0.5

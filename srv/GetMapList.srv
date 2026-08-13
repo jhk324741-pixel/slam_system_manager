@@ -1,0 +1,4 @@
+---
+bool success
+string[] map_names
+string message

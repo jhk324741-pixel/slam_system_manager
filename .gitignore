@@ -1,0 +1,31 @@
+# ROS 2 / colcon generated output
+build/
+install/
+log/
+
+# CMake generated output
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+compile_commands.json
+
+# Python generated output
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# C/C++ generated output
+*.o
+*.so
+*.a
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS metadata
+.DS_Store
+Thumbs.db

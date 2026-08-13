@@ -1,0 +1,41 @@
+# Platform-independent system settings. Algorithm-specific launch commands belong in process.yaml (Phase 2).
+map_root: "/home/nvidia/slam_maps"
+status_publish_hz: 2.0
+
+frames:
+  map: "map"
+  odom: "odom"
+  base: "base_link"
+  lidar: "os_sensor"
+
+topics:
+  # Verified against the current Ouster and FAST-LIO Ouster64 configurations.
+  pointcloud: "/ouster/points"
+  imu: "/ouster/imu"
+  initial_pose: "/initialpose"
+  # Inputs verified against fast_lio_localization.
+  localization_raw_odometry: "/Odometry"
+  localization_correction: "/map_to_odom"
+  # Platform-independent outputs published by RelocalizationAdapter.
+  localization_odometry: "/localization/odometry"
+  localization_pose: "/localization/pose"
+  system_status: "/system/status"
+
+last_pose:
+  enable: true
+  save_interval_sec: 5.0
+
+relocalization:
+  initial_pose_wait_timeout_sec: 5.0
+  # Avoid publishing to stale DDS endpoints before the new localization node has loaded its map.
+  initial_pose_settle_sec: 6.0
+  last_pose_retry_count: 3
+  last_pose_retry_interval_sec: 2.0
+  # One subscriber is SystemManager itself; the second must be the localization algorithm.
+  min_initial_pose_subscribers: 2
+
+extrinsics:
+  lidar_to_base:
+    # Placeholder only. Replace with the calibrated transform for each target platform.
+    translation: [0.0, 0.0, 0.0]
+    rotation_rpy: [0.0, 0.0, 0.0]
