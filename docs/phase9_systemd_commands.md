@@ -267,4 +267,4 @@ ros2 launch slam_system_manager system_bringup.launch.py
 - 真实重启验收通过：新 boot ID 为 `b95ba8ce-8c3b-43d9-86af-2a7a747310a3`，Unit 在 11:31:04 自动进入 `active`，`NRestarts=0`。
 - 重启后仅有一套 SystemManager、Ouster 和 rosbridge；点云约 10 Hz、IMU 约 100 Hz，系统进入 `WAIT_MODE`。
 - 控制机通过 `ws://192.168.1.199:9090` 执行 rosbridge 六步冒烟测试，结果为 `PASS`。
-- 真实 reboot：待最终确认后执行。
+- 真实 reboot：已完成并通过。
