@@ -22,3 +22,11 @@ processes:
     auto_start: false
     sigint_timeout_sec: 0.5
     sigterm_timeout_sec: 0.5
+
+  auto_templated:
+    command: "/bin/sleep {seconds}"
+    substitutions:
+      seconds: "30"
+    auto_start: true
+    sigint_timeout_sec: 0.5
+    sigterm_timeout_sec: 0.5

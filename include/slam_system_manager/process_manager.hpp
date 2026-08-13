@@ -21,6 +21,7 @@ struct ProcessConfig
 {
   std::string command;
   std::string working_directory;
+  std::unordered_map<std::string, std::string> substitutions;
   bool auto_start{false};
   double sigint_timeout_sec{5.0};
   double sigterm_timeout_sec{2.0};
@@ -36,7 +37,9 @@ public:
   ProcessManager & operator=(const ProcessManager &) = delete;
 
   void loadConfig(const std::string & path);
-  bool startAutoStartProcesses(std::string * error = nullptr);
+  bool startAutoStartProcesses(
+    std::string * error = nullptr,
+    const std::vector<std::string> & excluded_processes = {});
   bool startProcess(
     const std::string & name,
     const std::unordered_map<std::string, std::string> & substitutions = {},
@@ -49,6 +52,7 @@ public:
   bool isProcessRunning(const std::string & name);
   std::optional<int> lastExitCode(const std::string & name);
   std::vector<std::string> processNames() const;
+  std::vector<std::string> autoStartProcessNames() const;
   void stopAll();
 
 private:

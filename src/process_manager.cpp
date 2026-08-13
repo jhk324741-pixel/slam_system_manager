@@ -1,5 +1,6 @@
 #include "slam_system_manager/process_manager.hpp"
 
+#include <algorithm>
 #include <cerrno>
 #include <chrono>
 #include <climits>
@@ -42,6 +43,12 @@ void closeInheritedFileDescriptors()
 bool validProcessName(const std::string & name)
 {
   static const std::regex pattern("^[A-Za-z][A-Za-z0-9_]*$");
+  return std::regex_match(name, pattern);
+}
+
+bool validSubstitutionName(const std::string & name)
+{
+  static const std::regex pattern("^[A-Za-z_][A-Za-z0-9_]*$");
   return std::regex_match(name, pattern);
 }
 
@@ -111,6 +118,28 @@ void ProcessManager::loadConfig(const std::string & path)
     if (node["working_directory"]) {
       config.working_directory = node["working_directory"].as<std::string>();
     }
+    if (node["substitutions"]) {
+      const auto substitutions = node["substitutions"];
+      if (!substitutions.IsMap()) {
+        throw std::runtime_error(
+                "Process substitutions must be a map: " + name);
+      }
+      for (const auto & substitution : substitutions) {
+        const auto key = substitution.first.as<std::string>();
+        if (!validSubstitutionName(key)) {
+          throw std::runtime_error(
+                  "Invalid process substitution name '" + key + "' for " + name);
+        }
+        try {
+          config.substitutions.emplace(
+            key, substitution.second.as<std::string>());
+        } catch (const YAML::Exception & exception) {
+          throw std::runtime_error(
+                  "Invalid process substitution '" + name + "." + key + "': " +
+                  exception.what());
+        }
+      }
+    }
 
     if (config.command.empty()) {
       throw std::runtime_error("Process command must not be empty: " + name);
@@ -131,13 +160,18 @@ void ProcessManager::loadConfig(const std::string & path)
   RCLCPP_INFO(logger_, "[PROCESS] Loaded %zu process definitions from %s", processes_.size(), path.c_str());
 }
 
-bool ProcessManager::startAutoStartProcesses(std::string * error)
+bool ProcessManager::startAutoStartProcesses(
+  std::string * error, const std::vector<std::string> & excluded_processes)
 {
   std::vector<std::string> names;
   {
     std::lock_guard<std::mutex> lock(mutex_);
     for (const auto & entry : processes_) {
-      if (entry.second.config.auto_start) {
+      if (entry.second.config.auto_start &&
+        std::find(
+          excluded_processes.begin(), excluded_processes.end(), entry.first) ==
+        excluded_processes.end())
+      {
         names.push_back(entry.first);
       }
     }
@@ -177,9 +211,14 @@ bool ProcessManager::startProcess(
     return false;
   }
 
+  auto merged_substitutions = record.config.substitutions;
+  for (const auto & substitution : substitutions) {
+    merged_substitutions[substitution.first] = substitution.second;
+  }
+
   std::string command;
   try {
-    command = expandCommand(record.config.command, substitutions);
+    command = expandCommand(record.config.command, merged_substitutions);
   } catch (const std::exception & exception) {
     setError(error, exception.what());
     return false;
@@ -294,6 +333,18 @@ std::vector<std::string> ProcessManager::processNames() const
   names.reserve(processes_.size());
   for (const auto & entry : processes_) {
     names.push_back(entry.first);
+  }
+  return names;
+}
+
+std::vector<std::string> ProcessManager::autoStartProcessNames() const
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  std::vector<std::string> names;
+  for (const auto & entry : processes_) {
+    if (entry.second.config.auto_start) {
+      names.push_back(entry.first);
+    }
   }
   return names;
 }

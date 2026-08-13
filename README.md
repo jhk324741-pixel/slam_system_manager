@@ -1,6 +1,6 @@
 # slam_system_manager
 
-Phases 1 through 8 of the ROS 2 Humble SLAM system manager.
+Phases 1 through 9 of the ROS 2 Humble SLAM system manager.
 
 ## Current workspace integration
 
@@ -110,3 +110,15 @@ The installed `rosbridge_smoke_test.py` verifies WebSocket connection, `/system/
 `/system/get_status`, `/system/get_map_list`, JSON field types, request IDs, timeout handling, and
 disconnect/reconnect behavior. See `docs/phase8_rosbridge_commands.md` for the complete commands and
 manual business-interface test matrix.
+
+## Phase 9 systemd deployment
+
+Phase 9 adds a non-interactive startup script, a tracked `slam_system.service` template, and a
+separate `process_deployment.yaml`. The normal `process.yaml` remains safe for manual development;
+the deployment profile auto-starts the Ouster at `172.168.1.3` and rosbridge. Process commands can
+now define default YAML substitutions, and SystemManager skips managed Ouster auto-start when it
+discovers an existing external point-cloud or IMU publisher.
+
+The service uses `Restart=on-failure`, a five-second restart delay, SIGINT shutdown, systemd cgroup
+cleanup, and journald logging. See `docs/phase9_systemd_commands.md` for installation, rollback, and
+acceptance commands.

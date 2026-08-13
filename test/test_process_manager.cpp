@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <chrono>
 #include <memory>
 #include <string>
@@ -68,6 +69,29 @@ TEST(ProcessManager, ReplacesCommandTemplatesAndRejectsMissingValues)
     manager->startProcess("templated", {{"seconds", "30"}}, &error)) << error;
   EXPECT_TRUE(manager->isProcessRunning("templated"));
   EXPECT_TRUE(manager->stopProcess("templated", &error)) << error;
+}
+
+TEST(ProcessManager, UsesDefaultSubstitutionsAndSupportsAutoStartExclusions)
+{
+  auto manager = makeManager();
+  std::string error;
+  ASSERT_TRUE(
+    manager->startAutoStartProcesses(&error, {"auto_templated"})) << error;
+  EXPECT_FALSE(manager->isProcessRunning("auto_templated"));
+
+  const auto auto_start_names = manager->autoStartProcessNames();
+  EXPECT_NE(
+    std::find(auto_start_names.begin(), auto_start_names.end(), "auto_templated"),
+    auto_start_names.end());
+
+  ASSERT_TRUE(manager->startAutoStartProcesses(&error)) << error;
+  EXPECT_TRUE(manager->isProcessRunning("auto_templated"));
+  ASSERT_TRUE(manager->stopProcess("auto_templated", &error)) << error;
+
+  ASSERT_TRUE(
+    manager->startProcess("auto_templated", {{"seconds", "20"}}, &error)) << error;
+  EXPECT_TRUE(manager->isProcessRunning("auto_templated"));
+  EXPECT_TRUE(manager->stopProcess("auto_templated", &error)) << error;
 }
 
 TEST(ProcessManager, EscalatesToSigkillWhenProcessIgnoresStopSignals)

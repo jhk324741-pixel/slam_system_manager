@@ -1,0 +1,47 @@
+# Deployment profile used by slam_system.service. Development keeps using process.yaml.
+processes:
+  ouster:
+    command: "ros2 launch ouster_ros sensor.launch.xml sensor_hostname:={sensor_hostname} viz:=false"
+    working_directory: "/home/nvidia/fast_lio_ouster_ws"
+    substitutions:
+      sensor_hostname: "172.168.1.3"
+    auto_start: true
+    sigint_timeout_sec: 5.0
+    sigterm_timeout_sec: 2.0
+
+  mapping:
+    command: "ros2 launch fast_lio mapping.launch.py config_path:='{config_path}' config_file:='{config_file}' map_file_path:='{map_path}' pcd_save_en:=true pcd_save_interval:=-1 rviz:=false"
+    working_directory: "/home/nvidia/fast_lio_ouster_ws"
+    auto_start: false
+    sigint_timeout_sec: 10.0
+    sigterm_timeout_sec: 3.0
+
+  localization:
+    command: "ros2 launch fast_lio_localization localization_ouster64.launch.py map:={map_path} rviz:=false"
+    working_directory: "/home/nvidia/fast_lio_ouster_ws"
+    auto_start: false
+    sigint_timeout_sec: 5.0
+    sigterm_timeout_sec: 2.0
+
+  rosbridge:
+    command: "ros2 launch rosbridge_server rosbridge_websocket_launch.xml call_services_in_new_thread:=true default_call_service_timeout:=60.0 send_action_goals_in_new_thread:=true"
+    working_directory: "/home/nvidia/fast_lio_ouster_ws"
+    auto_start: true
+    sigint_timeout_sec: 5.0
+    sigterm_timeout_sec: 2.0
+
+mapping_adapter:
+  template_config: "package://fast_lio/config/ouster64.yaml"
+  runtime_config_name: "mapping_runtime.yaml"
+  startup_timeout_sec: 10.0
+  save_service:
+    name: "/map_save"
+    type: "std_srvs/srv/Trigger"
+    timeout_sec: 60.0
+
+localization_adapter:
+  startup_timeout_sec: 20.0
+  startup_stability_sec: 1.0
+  required_topics:
+    - "/pcd_map"
+    - "/Odometry"

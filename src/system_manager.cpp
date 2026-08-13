@@ -1,5 +1,6 @@
 #include "slam_system_manager/system_manager.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <functional>
@@ -15,6 +16,9 @@ namespace slam_system_manager
 {
 namespace
 {
+
+constexpr auto kExternalSensorDiscoveryTimeout = std::chrono::seconds(2);
+constexpr auto kExternalSensorDiscoveryPoll = std::chrono::milliseconds(100);
 
 bool isMappingState(const SystemState state)
 {
@@ -173,7 +177,29 @@ SystemManager::SystemManager(const rclcpp::NodeOptions & options)
       std::placeholders::_1, std::placeholders::_2));
 
   std::string auto_start_error;
-  if (!process_manager_->startAutoStartProcesses(&auto_start_error)) {
+  std::vector<std::string> excluded_auto_start_processes;
+  const auto auto_start_names = process_manager_->autoStartProcessNames();
+  if (std::find(auto_start_names.begin(), auto_start_names.end(), "ouster") !=
+    auto_start_names.end())
+  {
+    const auto discovery_deadline =
+      std::chrono::steady_clock::now() + kExternalSensorDiscoveryTimeout;
+    while (std::chrono::steady_clock::now() < discovery_deadline) {
+      if (count_publishers(config.topics.pointcloud) > 0U ||
+        count_publishers(config.topics.imu) > 0U)
+      {
+        excluded_auto_start_processes.push_back("ouster");
+        RCLCPP_WARN(
+          get_logger(),
+          "[PROCESS] External Ouster publishers detected; skipping managed Ouster auto-start");
+        break;
+      }
+      std::this_thread::sleep_for(kExternalSensorDiscoveryPoll);
+    }
+  }
+  if (!process_manager_->startAutoStartProcesses(
+      &auto_start_error, excluded_auto_start_processes))
+  {
     {
       std::lock_guard<std::mutex> lock(mutex_);
       error_code_ = "PROCESS_AUTO_START_FAILED";
@@ -237,7 +263,7 @@ SystemManager::SystemManager(const rclcpp::NodeOptions & options)
     config_file.c_str(), config.topics.system_status.c_str(), config.status_publish_hz);
   RCLCPP_INFO(
     get_logger(),
-    "[SYSTEM] Phase 8 API ready; waiting for healthy sensors and a mode selection");
+    "[SYSTEM] System API ready; waiting for healthy sensors and a mode selection");
 }
 
 SystemManager::~SystemManager()

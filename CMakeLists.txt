@@ -117,6 +117,8 @@ install(TARGETS
 install(DIRECTORY include/ DESTINATION include)
 install(DIRECTORY config launch DESTINATION share/${PROJECT_NAME})
 install(DIRECTORY docs DESTINATION share/${PROJECT_NAME})
+install(DIRECTORY systemd DESTINATION share/${PROJECT_NAME})
+install(PROGRAMS scripts/start_slam_system.sh DESTINATION lib/${PROJECT_NAME})
 install(PROGRAMS tools/rosbridge_smoke_test.py DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
