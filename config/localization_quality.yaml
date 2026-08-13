@@ -1,0 +1,33 @@
+localization_quality:
+  # /localization/odometry and /localization/pose run at approximately 10 Hz.
+  publish_hz: 5.0
+  pose_timeout_sec: 0.6
+
+  # /map_to_odom and registration quality update at approximately 0.5 Hz.
+  correction_timeout_sec: 5.0
+  registration_timeout_sec: 5.0
+
+  max_position_jump_m: 0.6
+  max_yaw_jump_deg: 25.0
+  max_linear_velocity_mps: 3.0
+  max_angular_velocity_dps: 180.0
+
+  max_correction_position_jump_m: 0.75
+  max_correction_yaw_jump_deg: 30.0
+
+  min_registration_fitness: 0.70
+  max_registration_residual_m: 0.60
+
+  bad_frames_to_degraded: 3
+  bad_frames_to_lost: 10
+  good_frames_to_recover: 10
+
+  confidence:
+    localized_threshold: 0.75
+    degraded_threshold: 0.40
+
+  weights:
+    update: 0.30
+    motion: 0.25
+    registration: 0.30
+    overlap: 0.15

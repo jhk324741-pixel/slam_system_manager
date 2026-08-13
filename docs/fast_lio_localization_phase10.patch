@@ -1,0 +1,67 @@
+--- a/package.xml
++++ b/package.xml
+@@ -34,0 +35 @@
++  <exec_depend>slam_system_manager</exec_depend>
+--- a/scripts/global_localization.py
++++ b/scripts/global_localization.py
+@@ -16,0 +17 @@
++from slam_system_manager.msg import RegistrationQuality
+@@ -34,0 +36 @@
++pub_registration_quality = None
+@@ -201 +203 @@
+-        return initial, 0.0
++        return initial, 0.0, math.nan, 0, 0
+@@ -217 +219 @@
+-        return np.asarray(initial, dtype=np.float64), 0.0
++        return np.asarray(initial, dtype=np.float64), 0.0, math.nan, 0, int(source_np.shape[0])
+@@ -222 +224 @@
+-        return np.eye(4, dtype=np.float64), 0.0
++        return np.eye(4, dtype=np.float64), 0.0, math.nan, 0, int(source_np.shape[0])
+@@ -228 +230 @@
+-        return T, 0.0
++        return T, 0.0, math.nan, 0, int(source_np.shape[0])
+@@ -244 +246 @@
+-            return T, 0.0
++            return T, 0.0, math.nan, valid_count, int(source_np.shape[0])
+@@ -265 +267,21 @@
+-    return T, fitness
++    return T, fitness, mean_error, valid_count, int(source_np.shape[0])
++
++
++def publish_registration_quality(fitness, mean_residual, correspondence_count, source_point_count):
++    quality = RegistrationQuality()
++    quality.header.stamp = node.get_clock().now().to_msg()
++    quality.header.frame_id = 'map'
++    quality.valid = (
++        math.isfinite(fitness)
++        and math.isfinite(mean_residual)
++        and source_point_count > 0
++        and 0 <= correspondence_count <= source_point_count
++    )
++    quality.accepted = quality.valid and fitness > LOCALIZATION_TH
++    quality.fitness = float(fitness) if math.isfinite(fitness) else math.nan
++    quality.mean_residual = (
++        float(mean_residual) if math.isfinite(mean_residual) else math.nan
++    )
++    quality.correspondence_count = max(0, int(correspondence_count))
++    quality.source_point_count = max(0, int(source_point_count))
++    pub_registration_quality.publish(quality)
+@@ -361 +383 @@
+-    transformation, _ = registration_at_scale(
++    transformation, _, _, _, _ = registration_at_scale(
+@@ -367 +389 @@
+-    transformation, fitness = registration_at_scale(
++    transformation, fitness, mean_residual, correspondence_count, source_point_count = registration_at_scale(
+@@ -375,0 +398,4 @@
++    publish_registration_quality(
++        fitness, mean_residual, correspondence_count, source_point_count
++    )
++
+@@ -463 +489 @@
+-    global node, pub_pc_in_map, pub_submap, pub_map_to_odom
++    global node, pub_pc_in_map, pub_submap, pub_map_to_odom, pub_registration_quality
+@@ -479,0 +506,4 @@
++    pub_registration_quality = node.create_publisher(
++        RegistrationQuality, '/localization/registration_quality', 10
++    )
++

@@ -14,6 +14,7 @@
 #include "slam_system_manager/config_manager.hpp"
 #include "slam_system_manager/health_monitor.hpp"
 #include "slam_system_manager/localization_adapter.hpp"
+#include "slam_system_manager/localization_quality_monitor.hpp"
 #include "slam_system_manager/map_manager.hpp"
 #include "slam_system_manager/mapping_adapter.hpp"
 #include "slam_system_manager/msg/system_status.hpp"
@@ -53,6 +54,7 @@ private:
   void handleInitialPoseObserved(
     const geometry_msgs::msg::PoseWithCovarianceStamped & pose);
   void handleLocalizationConfirmed();
+  LocalizationQualityContext localizationQualityContext();
   void launchOperation(std::function<void()> operation);
   void finishOperation();
   void setSystemError(const std::string & code, const std::string & message);
@@ -107,6 +109,7 @@ private:
   std::unique_ptr<MappingAdapter> mapping_adapter_;
   std::unique_ptr<LocalizationAdapter> localization_adapter_;
   std::unique_ptr<RelocalizationAdapter> relocalization_adapter_;
+  std::unique_ptr<LocalizationQualityMonitor> localization_quality_monitor_;
   SensorStatus sensor_status_;
   bool operation_in_progress_{false};
   bool previous_pointcloud_alive_{false};

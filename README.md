@@ -1,6 +1,6 @@
 # slam_system_manager
 
-Phases 1 through 9 of the ROS 2 Humble SLAM system manager.
+Phases 1 through 10 of the ROS 2 Humble SLAM system manager.
 
 ## Current workspace integration
 
@@ -122,3 +122,19 @@ discovers an existing external point-cloud or IMU publisher.
 The service uses `Restart=on-failure`, a five-second restart delay, SIGINT shutdown, systemd cgroup
 cleanup, and journald logging. See `docs/phase9_systemd_commands.md` for installation, rollback, and
 acceptance commands.
+
+## Phase 10 localization quality
+
+Phase 10 adds an independent localization-quality state machine (`UNKNOWN`, `LOCALIZED`,
+`DEGRADED`, `LOST`) without changing the Phase 1-9 system FSM. The manager publishes the fused
+result at `/localization/status` (5 Hz) and mirrors its state, confidence, pose-valid flag, and
+reason into `/system/status` for rosbridge clients.
+
+The first implementation combines pose freshness, position/yaw continuity, physically plausible
+velocity, `map_to_odom` health, process/sensor health, and the existing scan-to-map ICP fitness,
+correspondence ratio, and mean residual. Missing metrics are excluded from weight normalization;
+map overlap is currently unavailable and is explicitly published as NaN. Thresholds, weights, and
+hysteresis counts are in `config/localization_quality.yaml`.
+
+See `docs/phase10_localization_quality_commands.md` for metric provenance, LOST/recovery rules,
+build and test commands, controlled-fault steps, and the Phase 11 integration point.

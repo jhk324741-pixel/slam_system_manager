@@ -11,10 +11,14 @@ def generate_launch_description():
     default_config = os.path.join(package_share, 'config', 'system.yaml')
     default_process_config = os.path.join(package_share, 'config', 'process.yaml')
     default_sensor_config = os.path.join(package_share, 'config', 'sensor.yaml')
+    default_localization_quality_config = os.path.join(
+        package_share, 'config', 'localization_quality.yaml')
 
     config_file = LaunchConfiguration('config_file')
     process_config_file = LaunchConfiguration('process_config_file')
     sensor_config_file = LaunchConfiguration('sensor_config_file')
+    localization_quality_config_file = LaunchConfiguration(
+        'localization_quality_config_file')
 
     return LaunchDescription([
         DeclareLaunchArgument(
@@ -32,6 +36,11 @@ def generate_launch_description():
             default_value=default_sensor_config,
             description='Absolute path to slam_system_manager sensor.yaml',
         ),
+        DeclareLaunchArgument(
+            'localization_quality_config_file',
+            default_value=default_localization_quality_config,
+            description='Absolute path to localization_quality.yaml',
+        ),
         Node(
             package='slam_system_manager',
             executable='system_manager_node',
@@ -41,6 +50,7 @@ def generate_launch_description():
                 'config_file': config_file,
                 'process_config_file': process_config_file,
                 'sensor_config_file': sensor_config_file,
+                'localization_quality_config_file': localization_quality_config_file,
             }],
         ),
     ])

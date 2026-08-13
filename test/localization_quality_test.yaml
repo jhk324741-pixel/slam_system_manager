@@ -1,0 +1,24 @@
+localization_quality:
+  publish_hz: 5.0
+  pose_timeout_sec: 0.5
+  correction_timeout_sec: 2.0
+  registration_timeout_sec: 2.0
+  max_position_jump_m: 0.5
+  max_yaw_jump_deg: 20.0
+  max_linear_velocity_mps: 2.0
+  max_angular_velocity_dps: 100.0
+  max_correction_position_jump_m: 0.5
+  max_correction_yaw_jump_deg: 20.0
+  min_registration_fitness: 0.70
+  max_registration_residual_m: 0.60
+  bad_frames_to_degraded: 2
+  bad_frames_to_lost: 4
+  good_frames_to_recover: 3
+  confidence:
+    localized_threshold: 0.75
+    degraded_threshold: 0.40
+  weights:
+    update: 0.30
+    motion: 0.25
+    registration: 0.30
+    overlap: 0.15

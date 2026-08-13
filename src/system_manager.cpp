@@ -47,11 +47,15 @@ SystemManager::SystemManager(const rclcpp::NodeOptions & options)
   const auto default_config = package_share + "/config/system.yaml";
   const auto default_process_config = package_share + "/config/process.yaml";
   const auto default_sensor_config = package_share + "/config/sensor.yaml";
+  const auto default_localization_quality_config =
+    package_share + "/config/localization_quality.yaml";
   const auto config_file = declare_parameter<std::string>("config_file", default_config);
   const auto process_config_file =
     declare_parameter<std::string>("process_config_file", default_process_config);
   const auto sensor_config_file =
     declare_parameter<std::string>("sensor_config_file", default_sensor_config);
+  const auto localization_quality_config_file = declare_parameter<std::string>(
+    "localization_quality_config_file", default_localization_quality_config);
 
   if (!transitionTo(SystemState::SYSTEM_CHECK)) {
     throw std::logic_error("Failed to enter SYSTEM_CHECK during startup");
@@ -223,6 +227,25 @@ SystemManager::SystemManager(const rclcpp::NodeOptions & options)
     throw;
   }
 
+  try {
+    localization_quality_monitor_ = std::make_unique<LocalizationQualityMonitor>(
+      *this, localization_quality_config_file,
+      config.topics.localization_odometry,
+      config.topics.localization_pose,
+      config.topics.localization_correction,
+      config.frames.map,
+      std::bind(&SystemManager::localizationQualityContext, this));
+  } catch (const std::exception & exception) {
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      error_code_ = "LOCALIZATION_QUALITY_CONFIG_LOAD_FAILED";
+      error_message_ = exception.what();
+    }
+    transitionTo(SystemState::ERROR);
+    RCLCPP_FATAL(get_logger(), "[LOCALIZATION_QUALITY] %s", exception.what());
+    throw;
+  }
+
   bool system_check_passed = false;
   {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -320,6 +343,18 @@ msg::SystemStatus SystemManager::buildStatusMessage()
   status.imu_hz = static_cast<float>(sensor_status.imu_hz);
   status.mapping_running = process_manager_ && process_manager_->isProcessRunning("mapping");
   status.localization_running = localization_adapter_ && localization_adapter_->isRunning();
+  if (localization_quality_monitor_) {
+    const auto quality = localization_quality_monitor_->status();
+    status.localization_quality_state = quality.state;
+    status.localization_confidence = quality.confidence;
+    status.localization_pose_valid = quality.pose_valid;
+    status.localization_quality_reason = quality.reason;
+  } else {
+    status.localization_quality_state = "UNKNOWN";
+    status.localization_confidence = 0.0F;
+    status.localization_pose_valid = false;
+    status.localization_quality_reason = "Localization quality monitor is unavailable";
+  }
   return status;
 }
 
@@ -434,6 +469,9 @@ void SystemManager::performRecovery()
 
     if (relocalization_adapter_) {
       relocalization_adapter_->resetSession();
+    }
+    if (localization_quality_monitor_) {
+      localization_quality_monitor_->reset();
     }
     const auto sensor_status = health_monitor_ ? health_monitor_->getStatus() : SensorStatus{};
     {
@@ -666,6 +704,9 @@ void SystemManager::handleInitialPoseObserved(
   }
 
   relocalization_adapter_->resetSession();
+  if (localization_quality_monitor_) {
+    localization_quality_monitor_->reset();
+  }
   if (state == SystemState::LOCALIZED) {
     transitionTo(SystemState::RELOCALIZING);
   }
@@ -689,9 +730,29 @@ void SystemManager::handleLocalizationConfirmed()
   }
 }
 
+LocalizationQualityContext SystemManager::localizationQualityContext()
+{
+  LocalizationQualityContext context;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    context.localization_active = isLocalizationState(current_state_);
+    context.localization_initialized = current_state_ == SystemState::LOCALIZED;
+    context.sensors_healthy = sensor_status_.sensor_ready;
+  }
+  context.localization_process_alive =
+    localization_adapter_ && localization_adapter_->isRunning();
+  return context;
+}
+
 void SystemManager::saveLastPose()
 {
   if (shutting_down_.load() || !relocalization_adapter_ || !map_manager_) {
+    return;
+  }
+
+  if (!localization_quality_monitor_ ||
+    !localization_quality_monitor_->status().pose_valid)
+  {
     return;
   }
 
@@ -1128,6 +1189,9 @@ void SystemManager::handleStartLocalization(
     error_message_.clear();
   }
   relocalization_adapter_->resetSession();
+  if (localization_quality_monitor_) {
+    localization_quality_monitor_->reset();
+  }
   if (!transitionTo(SystemState::LOCALIZATION_STARTING)) {
     {
       std::lock_guard<std::mutex> lock(mutex_);
@@ -1278,6 +1342,9 @@ void SystemManager::handleStopLocalization(
         transitionTo(SystemState::WAIT_MODE);
       }
       relocalization_adapter_->resetSession();
+      if (localization_quality_monitor_) {
+        localization_quality_monitor_->reset();
+      }
       RCLCPP_INFO(get_logger(), "[LOCALIZATION] Stopped");
     });
 }

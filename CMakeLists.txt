@@ -15,6 +15,7 @@ find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
@@ -23,6 +24,8 @@ find_package(yaml_cpp_vendor REQUIRED)
 find_package(yaml-cpp REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/LocalizationStatus.msg"
+  "msg/RegistrationQuality.msg"
   "msg/SystemStatus.msg"
   "srv/CreateMap.srv"
   "srv/DeleteMap.srv"
@@ -35,7 +38,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/StartLocalization.srv"
   "srv/StopLocalization.srv"
   "srv/SetInitialPose.srv"
-  DEPENDENCIES geometry_msgs
+  DEPENDENCIES geometry_msgs std_msgs
 )
 
 add_library(config_manager src/config_manager.cpp)
@@ -86,6 +89,14 @@ ament_target_dependencies(
   relocalization_adapter geometry_msgs nav_msgs rclcpp tf2 tf2_geometry_msgs)
 target_link_libraries(relocalization_adapter yaml-cpp)
 
+add_library(localization_quality_monitor src/localization_quality_monitor.cpp)
+target_include_directories(localization_quality_monitor PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+ament_target_dependencies(
+  localization_quality_monitor geometry_msgs nav_msgs rclcpp std_msgs)
+target_link_libraries(localization_quality_monitor yaml-cpp)
+
 add_library(system_manager src/system_manager.cpp)
 target_include_directories(system_manager PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -94,11 +105,12 @@ ament_target_dependencies(
   system_manager ament_index_cpp geometry_msgs nav_msgs rclcpp sensor_msgs std_srvs)
 target_link_libraries(system_manager
   config_manager process_manager health_monitor map_manager mapping_adapter localization_adapter
-  relocalization_adapter)
+  relocalization_adapter localization_quality_monitor)
 
 rosidl_get_typesupport_target(cpp_typesupport_target
   ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_link_libraries(system_manager "${cpp_typesupport_target}")
+target_link_libraries(localization_quality_monitor "${cpp_typesupport_target}")
 
 add_executable(system_manager_node src/system_manager_main.cpp)
 target_include_directories(system_manager_node PRIVATE include)
@@ -107,7 +119,7 @@ target_link_libraries(system_manager_node system_manager)
 
 install(TARGETS
   config_manager process_manager health_monitor map_manager mapping_adapter localization_adapter
-  relocalization_adapter system_manager
+  relocalization_adapter localization_quality_monitor system_manager
   system_manager_node
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib
@@ -165,11 +177,21 @@ if(BUILD_TESTING)
   ament_target_dependencies(
     test_system_manager_api rclcpp sensor_msgs std_srvs)
   target_link_libraries(test_system_manager_api system_manager)
+
+  ament_add_gtest(
+    test_localization_quality_monitor test/test_localization_quality_monitor.cpp)
+  target_include_directories(test_localization_quality_monitor PRIVATE include)
+  target_compile_definitions(test_localization_quality_monitor PRIVATE
+    LOCALIZATION_QUALITY_TEST_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/test/localization_quality_test.yaml")
+  ament_target_dependencies(
+    test_localization_quality_monitor geometry_msgs nav_msgs rclcpp std_msgs)
+  target_link_libraries(
+    test_localization_quality_monitor localization_quality_monitor yaml-cpp)
 endif()
 
 ament_export_include_directories(include)
 ament_export_targets(export_${PROJECT_NAME})
 ament_export_dependencies(
-  geometry_msgs nav_msgs rclcpp rosidl_default_runtime sensor_msgs std_srvs tf2
+  geometry_msgs nav_msgs rclcpp rosidl_default_runtime sensor_msgs std_msgs std_srvs tf2
   tf2_geometry_msgs yaml_cpp_vendor)
 ament_package()
