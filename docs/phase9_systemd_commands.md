@@ -264,5 +264,7 @@ ros2 launch slam_system_manager system_bringup.launch.py
 - 暂停 Ouster 驱动 3 秒期间，Unit 保持 `active`、`NRestarts=0`，状态进入 `SENSOR_STARTING / SENSOR_NO_POINTCLOUD`；恢复后自动回到 `WAIT_MODE`。
 - 强制终止 MainPID 后，MainPID 从 `21919` 变为 `22213`，`NRestarts` 从 0 增至 1；服务、Ouster 和 9090 均正常恢复，状态回到 `WAIT_MODE`。
 - 日志已写入 journald，可通过第 10 节命令查询。
-- 真实重启验收尚未执行，须先确认设备当前没有不可中断任务。
+- 真实重启验收通过：新 boot ID 为 `b95ba8ce-8c3b-43d9-86af-2a7a747310a3`，Unit 在 11:31:04 自动进入 `active`，`NRestarts=0`。
+- 重启后仅有一套 SystemManager、Ouster 和 rosbridge；点云约 10 Hz、IMU 约 100 Hz，系统进入 `WAIT_MODE`。
+- 控制机通过 `ws://192.168.1.199:9090` 执行 rosbridge 六步冒烟测试，结果为 `PASS`。
 - 真实 reboot：待最终确认后执行。
